@@ -1,14 +1,3 @@
-FROM node:18
-
-WORKDIR /app
-
-COPY package.json ./
-RUN npm install
-
-COPY . .
-
-CMD ["node", "index.js"]
-ash-4.4# cat index.js
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
