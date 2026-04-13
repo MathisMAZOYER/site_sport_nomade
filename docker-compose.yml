@@ -3,7 +3,7 @@ version: '3.8'
 services:
   db:
     image: postgres:15
-    container_name: gym_db
+    container_name: sport_db
     restart: always
     environment:
       POSTGRES_USER: gym
@@ -16,7 +16,7 @@ services:
 
   backend:
     build: ./backend
-    container_name: gym_api
+    container_name: sport_api
     restart: always
     ports:
       - "3000:3000"
