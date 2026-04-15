@@ -15,6 +15,23 @@ const pool = new Pool({
   port: 5432,
 });
 
+// Wait for DB available
+
+const waitForDb = async () => {
+  let connected = false;
+
+  while (!connected) {
+    try {
+      await pool.query('SELECT 1');
+      connected = true;
+      console.log('✅ DB ready');
+    } catch (err) {
+      console.log('⏳ Waiting for DB...');
+      await new Promise(res => setTimeout(res, 2000));
+    }
+  }
+};
+
 // Test connexion DB au démarrage
 pool.connect()
   .then(() => console.log('✅ Connected to PostgreSQL'))
