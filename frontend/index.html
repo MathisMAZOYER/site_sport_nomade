@@ -2,33 +2,130 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Sport Tracker</title>
+  <title>Gym Tracker</title>
 </head>
 <body>
 
-  <h1>Ajouter un exercice 💪</h1>
+<h1>CRUD Exercises 💪</h1>
 
-  <input type="text" id="exerciseName" placeholder="Nom de l'exercice">
-  <button onclick="addExercise()">Ajouter</button>
+<!-- CREATE -->
+<h2>Créer un exercice</h2>
+<input type="number" id="creator_id" placeholder="creator_id">
+<input type="checkbox" id="shared"> Shared
+<input type="text" id="tracking" placeholder='{"sets":[{"reps":10,"weight":60}]}'>
+<button onclick="createExercise()">Créer</button>
 
-  <p id="result"></p>
+<hr>
 
-  <script>
-    async function addExercise() {
-      const name = document.getElementById('exerciseName').value;
+<!-- READ ALL -->
+<h2>Liste des exercices</h2>
+<button onclick="getExercises()">Refresh</button>
+<ul id="exerciseList"></ul>
 
-      const res = await fetch('http://192.168.1.210:3000/exercises', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-      });
+<hr>
 
-      const data = await res.json();
+<!-- READ ONE -->
+<h2>Voir un exercice</h2>
+<input type="number" id="get_id" placeholder="ID">
+<button onclick="getExercise()">Get</button>
+<p id="exerciseDetail"></p>
 
-      document.getElementById('result').innerText =
-        "Ajouté : " + data.name + " (id: " + data.id + ")";
-    }
-  </script>
+<hr>
+
+<!-- UPDATE -->
+<h2>Update</h2>
+<input type="number" id="update_id" placeholder="ID">
+<input type="number" id="update_creator_id" placeholder="creator_id">
+<input type="checkbox" id="update_shared"> Shared
+<input type="text" id="update_tracking" placeholder='{"sets":[{"reps":8,"weight":70}]}'>
+<button onclick="updateExercise()">Update</button>
+
+<hr>
+
+<!-- DELETE -->
+<h2>Delete</h2>
+<input type="number" id="delete_id" placeholder="ID">
+<button onclick="deleteExercise()">Delete</button>
+
+<script>
+const API = "http://192.168.1.210:3000";
+
+// CREATE
+async function createExercise() {
+  const creator_id = document.getElementById('creator_id').value;
+  const shared = document.getElementById('shared').checked;
+  const tracking = document.getElementById('tracking').value;
+
+  const res = await fetch(API + '/exercises', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      creator_id: parseInt(creator_id),
+      shared: shared,
+      tracking: tracking ? JSON.parse(tracking) : {}
+    })
+  });
+
+  console.log(await res.json());
+}
+
+// READ ALL
+async function getExercises() {
+  const res = await fetch(API + '/exercises');
+  const data = await res.json();
+
+  const list = document.getElementById('exerciseList');
+  list.innerHTML = '';
+
+  data.forEach(ex => {
+    const li = document.createElement('li');
+    li.innerText = `ID: ${ex.id} | shared: ${ex.shared}`;
+    list.appendChild(li);
+  });
+}
+
+// READ ONE
+async function getExercise() {
+  const id = document.getElementById('get_id').value;
+
+  const res = await fetch(API + '/exercises/' + id);
+  const data = await res.json();
+
+  document.getElementById('exerciseDetail').innerText =
+    JSON.stringify(data, null, 2);
+}
+
+// UPDATE
+async function updateExercise() {
+  const id = document.getElementById('update_id').value;
+  const creator_id = document.getElementById('update_creator_id').value;
+  const shared = document.getElementById('update_shared').checked;
+  const tracking = document.getElementById('update_tracking').value;
+
+  const res = await fetch(API + '/exercises/' + id, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      creator_id: parseInt(creator_id),
+      shared: shared,
+      tracking: tracking ? JSON.parse(tracking) : {}
+    })
+  });
+
+  console.log(await res.json());
+}
+
+// DELETE
+async function deleteExercise() {
+  const id = document.getElementById('delete_id').value;
+
+  const res = await fetch(API + '/exercises/' + id, {
+    method: 'DELETE'
+  });
+
+  console.log(await res.json());
+}
+</script>
 
 </body>
 </html>
