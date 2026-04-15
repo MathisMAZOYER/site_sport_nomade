@@ -3,128 +3,199 @@
 <head>
   <meta charset="UTF-8">
   <title>Gym Tracker</title>
+  <style>
+    body { font-family: Arial; margin: 0; }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px;
+      background: #222;
+      color: white;
+    }
+
+    .users button {
+      margin-right: 10px;
+      padding: 8px;
+      cursor: pointer;
+    }
+
+    .active {
+      background: green;
+      color: white;
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    .card {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+
+    input, select {
+      margin: 5px;
+    }
+  </style>
 </head>
+
 <body>
 
-<h1>CRUD Exercises 💪</h1>
+<div class="topbar">
+  <div class="users">
+    <button onclick="selectUser('Raf')" id="user_Raf">Raf</button>
+    <button onclick="selectUser('Mathis')" id="user_Mathis">Mathis</button>
+  </div>
 
-<!-- CREATE -->
-<h2>Créer un exercice</h2>
-<input type="number" id="creator_id" placeholder="creator_id">
-<input type="checkbox" id="shared"> Shared
-<input type="text" id="tracking" placeholder='{"sets":[{"reps":10,"weight":60}]}'>
-<button onclick="createExercise()">Créer</button>
+  <button onclick="newSession()">+ Nouvelle session</button>
+</div>
 
-<hr>
+<div class="container">
 
-<!-- READ ALL -->
-<h2>Liste des exercices</h2>
-<button onclick="getExercises()">Refresh</button>
-<ul id="exerciseList"></ul>
+  <h2 id="sessionTitle">Session : -</h2>
 
-<hr>
+  <!-- ADD EXERCISE -->
+  <div class="card">
+    <h3>Ajouter exercice</h3>
 
-<!-- READ ONE -->
-<h2>Voir un exercice</h2>
-<input type="number" id="get_id" placeholder="ID">
-<button onclick="getExercise()">Get</button>
-<p id="exerciseDetail"></p>
+    <input id="exerciseName" placeholder="Nouvel exercice">
 
-<hr>
+    <button onclick="createExercise()">Créer</button>
+  </div>
 
-<!-- UPDATE -->
-<h2>Update</h2>
-<input type="number" id="update_id" placeholder="ID">
-<input type="number" id="update_creator_id" placeholder="creator_id">
-<input type="checkbox" id="update_shared"> Shared
-<input type="text" id="update_tracking" placeholder='{"sets":[{"reps":8,"weight":70}]}'>
-<button onclick="updateExercise()">Update</button>
+  <!-- SELECT EXISTING -->
+  <div class="card">
+    <h3>Exercices existants</h3>
 
-<hr>
+    <select id="exerciseSelect"></select>
 
-<!-- DELETE -->
-<h2>Delete</h2>
-<input type="number" id="delete_id" placeholder="ID">
-<button onclick="deleteExercise()">Delete</button>
+    <input id="reps" placeholder="reps" type="number">
+    <input id="weight" placeholder="weight" type="number">
+
+    <button onclick="savePerformance()">Save</button>
+  </div>
+
+  <!-- LIST -->
+  <div class="card">
+    <h3>Historique session</h3>
+    <div id="history"></div>
+  </div>
+
+</div>
 
 <script>
 const API = "http://192.168.1.210:3000";
 
-// CREATE
-async function createExercise() {
-  const creator_id = document.getElementById('creator_id').value;
-  const shared = document.getElementById('shared').checked;
-  const tracking = document.getElementById('tracking').value;
+let currentUser = "Raf";
+let currentSession = 1;
+let sessionCounter = 1;
 
-  const res = await fetch(API + '/exercises', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      creator_id: parseInt(creator_id),
-      shared: shared,
-      tracking: tracking ? JSON.parse(tracking) : {}
-    })
-  });
+let sessionData = {
+  Raf: {},
+  Mathis: {}
+};
 
-  console.log(await res.json());
+// ---------------- USER ----------------
+function selectUser(user) {
+  currentUser = user;
+
+  document.getElementById("user_Raf").classList.remove("active");
+  document.getElementById("user_Mathis").classList.remove("active");
+
+  document.getElementById("user_" + user).classList.add("active");
+
+  loadExercises();
 }
 
-// READ ALL
-async function getExercises() {
-  const res = await fetch(API + '/exercises');
+selectUser("Raf");
+
+// ---------------- SESSION ----------------
+function newSession() {
+  currentSession++;
+  sessionCounter++;
+
+  document.getElementById("sessionTitle").innerText =
+    `Session ${currentSession} - ${currentUser}`;
+
+  sessionData[currentUser][currentSession] = [];
+
+  document.getElementById("history").innerHTML = "";
+}
+
+// ---------------- EXERCISES ----------------
+async function loadExercises() {
+  const res = await fetch(API + "/exercises");
   const data = await res.json();
 
-  const list = document.getElementById('exerciseList');
-  list.innerHTML = '';
+  const select = document.getElementById("exerciseSelect");
+  select.innerHTML = "";
 
   data.forEach(ex => {
-    const li = document.createElement('li');
-    li.innerText = `ID: ${ex.id} | shared: ${ex.shared}`;
-    list.appendChild(li);
+    const opt = document.createElement("option");
+    opt.value = ex.id;
+    opt.text = `#${ex.id} - ${ex.name || "exercise"}`;
+    select.appendChild(opt);
   });
 }
 
-// READ ONE
-async function getExercise() {
-  const id = document.getElementById('get_id').value;
+// CREATE EXERCISE
+async function createExercise() {
+  const name = document.getElementById("exerciseName").value;
 
-  const res = await fetch(API + '/exercises/' + id);
-  const data = await res.json();
-
-  document.getElementById('exerciseDetail').innerText =
-    JSON.stringify(data, null, 2);
-}
-
-// UPDATE
-async function updateExercise() {
-  const id = document.getElementById('update_id').value;
-  const creator_id = document.getElementById('update_creator_id').value;
-  const shared = document.getElementById('update_shared').checked;
-  const tracking = document.getElementById('update_tracking').value;
-
-  const res = await fetch(API + '/exercises/' + id, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+  await fetch(API + "/exercises", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
     body: JSON.stringify({
-      creator_id: parseInt(creator_id),
-      shared: shared,
-      tracking: tracking ? JSON.parse(tracking) : {}
+      creator_id: 1,
+      shared: true,
+      tracking: null // PROVISOIREEEEEE
     })
   });
 
-  console.log(await res.json());
+  loadExercises();
 }
 
-// DELETE
-async function deleteExercise() {
-  const id = document.getElementById('delete_id').value;
+// SAVE PERFORMANCE
+function savePerformance() {
+  const exId = document.getElementById("exerciseSelect").value;
+  const reps = document.getElementById("reps").value;
+  const weight = document.getElementById("weight").value;
 
-  const res = await fetch(API + '/exercises/' + id, {
-    method: 'DELETE'
+  if (!sessionData[currentUser][currentSession]) {
+    sessionData[currentUser][currentSession] = [];
+  }
+
+  sessionData[currentUser][currentSession].push({
+    exercise_id: exId,
+    reps,
+    weight
   });
 
-  console.log(await res.json());
+  renderHistory();
 }
+
+// ---------------- HISTORY ----------------
+function renderHistory() {
+  const div = document.getElementById("history");
+  div.innerHTML = "";
+
+  const data = sessionData[currentUser][currentSession] || [];
+
+  data.forEach(item => {
+    const el = document.createElement("div");
+    el.innerHTML = `
+      Exercise ${item.exercise_id}
+      | reps: ${item.reps}
+      | weight: ${item.weight}
+    `;
+    div.appendChild(el);
+  });
+}
+
+loadExercises();
+
 </script>
 
 </body>

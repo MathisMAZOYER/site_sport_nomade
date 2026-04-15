@@ -32,6 +32,25 @@ const waitForDb = async () => {
   }
 };
 
+const seedUsers = async () => {
+  const result = await pool.query('SELECT COUNT(*) FROM users');
+
+  const count = parseInt(result.rows[0].count, 10);
+
+  if (count === 0) {
+    console.log('🌱 Seeding users...');
+
+    await pool.query(`
+      INSERT INTO users (name)
+      VALUES ('Raf'), ('Mathis')
+    `);
+
+    console.log('✅ Default users created');
+  } else {
+    console.log('👤 Users already exist, skipping seed');
+  }
+};
+
 // Test connexion DB au démarrage
 pool.connect()
   .then(() => console.log('✅ Connected to PostgreSQL'))
@@ -79,8 +98,12 @@ const initDb = async () => {
   console.log('✅ All tables ready');
 };
 
-initDb();
+const start = async () => {
+  await initDb();
+  await seedUsers();   // 👈 AJOUT ICI
+};
 
+start();
 // ------- EXERCICES -------
 
 // CREATE
@@ -88,9 +111,11 @@ app.post('/exercises', async (req, res) => {
   try {
     const { creator_id, shared, tracking } = req.body;
 
+    const safeTracking = tracking ?? {}; // 👈 fallback si null PROVISOIRE
+
     const result = await pool.query(
       'INSERT INTO exercises(creator_id, shared, tracking) VALUES($1, $2, $3) RETURNING *',
-      [creator_id, shared, tracking]
+      [creator_id, shared, safeTracking] // safseTracking PROVISOIRE
     );
 
     res.json(result.rows[0]);
