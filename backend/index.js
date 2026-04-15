@@ -81,14 +81,16 @@ const initDb = async () => {
 
 initDb();
 
-// Ajouter un exercice
+// ------- EXERCICES -------
+
+// CREATE
 app.post('/exercises', async (req, res) => {
   try {
-    const { name } = req.body;
+    const { creator_id, shared, tracking } = req.body;
 
     const result = await pool.query(
-      'INSERT INTO exercises(name) VALUES($1) RETURNING *',
-      [name]
+      'INSERT INTO exercises(creator_id, shared, tracking) VALUES($1, $2, $3) RETURNING *',
+      [creator_id, shared, tracking]
     );
 
     res.json(result.rows[0]);
@@ -98,38 +100,64 @@ app.post('/exercises', async (req, res) => {
   }
 });
 
-
+// READ ONE
 app.get('/exercises/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    const result = await pool.query(
-      'SELECT * FROM exercises WHERE id = $1',
-      [id]
-    );
+  const result = await pool.query(
+    'SELECT * FROM exercises WHERE id = $1',
+    [id]
+  );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Exercise not found' });
-    }
-
-    res.json(result.rows[0]);
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Error');
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: 'Exercise not found' });
   }
+
+  res.json(result.rows[0]);
 });
 
-// Récupérer tous les exercices
+// READ ALL
 app.get('/exercises', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM exercises');
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Error');
-  }
+  const result = await pool.query('SELECT * FROM exercises');
+  res.json(result.rows);
 });
+
+//UPDATE
+app.put('/exercises/:id', async (req, res) => {
+  const { id } = req.params;
+  const { creator_id, shared, tracking } = req.body;
+
+  const result = await pool.query(
+    `UPDATE exercises
+     SET creator_id = $1, shared = $2, tracking = $3
+     WHERE id = $4
+     RETURNING *`,
+    [creator_id, shared, tracking, id]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: 'Exercise not found' });
+  }
+
+  res.json(result.rows[0]);
+});
+
+// DELETE
+app.delete('/exercises/:id', async (req, res) => {
+  const { id } = req.params;
+
+  const result = await pool.query(
+    'DELETE FROM exercises WHERE id = $1 RETURNING *',
+    [id]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: 'Exercise not found' });
+  }
+
+  res.json({ message: 'Deleted' });
+});
+
 
 // Lancer serveur
 app.listen(3000, () => {
