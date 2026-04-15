@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Sport Tracker</title>
+</head>
+<body>
+
+  <h1>Ajouter un exercice 💪</h1>
+
+  <input type="text" id="exerciseName" placeholder="Nom de l'exercice">
+  <button onclick="addExercise()">Ajouter</button>
+
+  <p id="result"></p>
+
+  <script>
+    async function addExercise() {
+      const name = document.getElementById('exerciseName').value;
+
+      const res = await fetch('http://192.168.1.210:3000/exercises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+
+      const data = await res.json();
+
+      document.getElementById('result').innerText =
+        "Ajouté : " + data.name + " (id: " + data.id + ")";
+    }
+  </script>
+
+</body>
+</html>

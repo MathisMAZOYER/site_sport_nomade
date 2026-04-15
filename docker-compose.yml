@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: sport_db
+    restart: always
+    environment:
+      POSTGRES_USER: gym
+      POSTGRES_PASSWORD: gympass
+      POSTGRES_DB: gymtracker
+    volumes:
+      - /volume2/sport/db:/var/lib/postgresql/data
+    ports:
+      - "54320:5432"
+
+  backend:
+    build: ./backend
+    container_name: sport_api
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
