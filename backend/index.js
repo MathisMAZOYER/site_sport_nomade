@@ -27,13 +27,39 @@ app.get('/', (req, res) => {
 
 // Création table exercises si elle existe pas
 const initDb = async () => {
+  await waitForDb();
+
+  // USERS
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS exercises (
+    CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL
     );
   `);
-  console.log('✅ Table exercises ready');
+  console.log('✅ Table Users ready');
+
+  // EXERCISES
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS exercises (
+      id SERIAL PRIMARY KEY,
+      creator_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      shared BOOLEAN DEFAULT false,
+      tracking JSONB
+    );
+  `);
+  console.log('✅ Table Exercises ready');
+
+
+  // SESSIONS
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL
+    );
+  `);
+  console.log('✅ Table sessions ready');
+
+  console.log('✅ All tables ready');
 };
 
 initDb();
@@ -62,7 +88,7 @@ app.get('/exercises/:id', async (req, res) => {
 
     const result = await pool.query(
       'SELECT * FROM exercises WHERE id = $1',
-      [id]:wq!:
+      [id]
     );
 
     if (result.rows.length === 0) {
