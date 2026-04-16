@@ -6,10 +6,13 @@
 id | name
 
 ### exercices :
-id | creator_id | shared | tracking
+id | creator_id | shared
 
 ### sessions :
 id | name
+
+### sets :
+-- user -- | -- exercices -- | -- sessions -- | reps | weight | created_at
 
 ## Structure de tracking :
 

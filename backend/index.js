@@ -79,8 +79,7 @@ const initDb = async () => {
     CREATE TABLE IF NOT EXISTS exercises (
       id SERIAL PRIMARY KEY,
       creator_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      shared BOOLEAN DEFAULT false,
-      tracking JSONB
+      shared BOOLEAN DEFAULT false
     );
   `);
   console.log('✅ Table Exercises ready');
@@ -94,6 +93,20 @@ const initDb = async () => {
     );
   `);
   console.log('✅ Table sessions ready');
+  
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sets (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      exercise_id INTEGER REFERENCES exercises(id) ON DELETE CASCADE,
+      session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE,
+      reps INTEGER NOT NULL,
+      weight INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+    console.log('✅ Table sets ready');
 
   console.log('✅ All tables ready');
 };
@@ -109,13 +122,12 @@ start();
 // CREATE
 app.post('/exercises', async (req, res) => {
   try {
-    const { creator_id, shared, tracking } = req.body;
+    const { creator_id, shared } = req.body;
 
-    const safeTracking = tracking ?? {}; // 👈 fallback si null PROVISOIRE
 
     const result = await pool.query(
-      'INSERT INTO exercises(creator_id, shared, tracking) VALUES($1, $2, $3) RETURNING *',
-      [creator_id, shared, safeTracking] // safseTracking PROVISOIRE
+      'INSERT INTO exercises(creator_id, shared) VALUES($1, $2, $3) RETURNING *',
+      [creator_id, shared] 
     );
 
     res.json(result.rows[0]);
@@ -150,14 +162,14 @@ app.get('/exercises', async (req, res) => {
 //UPDATE
 app.put('/exercises/:id', async (req, res) => {
   const { id } = req.params;
-  const { creator_id, shared, tracking } = req.body;
+  const { creator_id, shared } = req.body;
 
   const result = await pool.query(
     `UPDATE exercises
-     SET creator_id = $1, shared = $2, tracking = $3
+     SET creator_id = $1, shared = $2
      WHERE id = $4
      RETURNING *`,
-    [creator_id, shared, tracking, id]
+    [creator_id, shared, id]
   );
 
   if (result.rows.length === 0) {
@@ -365,6 +377,110 @@ app.delete('/sessions/:id', async (req, res) => {
     }
 
     res.json({ message: 'Session deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error');
+  }
+});
+
+
+// ------ SETS ------
+
+// CREATE
+app.post('/sets', async (req, res) => {
+  try {
+    const { user_id, session_id, exercise_id, reps, weight } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO sets(user_id, session_id, exercise_id, reps, weight)
+       VALUES($1,$2,$3,$4,$5)
+       RETURNING *`,
+      [user_id, session_id, exercise_id, reps, weight]
+    );
+
+    res.json(result.rows[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error');
+  }
+});
+
+// READ ALL
+app.get('/sets', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM sets');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error');
+  }
+});
+
+// READ ONE
+app.get('/sets/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM sets WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Set not found' });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error');
+  }
+});
+
+// UPDATE
+app.put('/sets/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reps, weight } = req.body;
+
+    const result = await pool.query(
+      `UPDATE sets
+       SET reps = $1, weight = $2
+       WHERE id = $3
+       RETURNING *`,
+      [reps, weight, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Set not found' });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error');
+  }
+});
+
+// DELETE
+app.delete('/sets/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'DELETE FROM sets WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Set not found' });
+    }
+
+    res.json({ message: 'Set deleted' });
+
   } catch (err) {
     console.error(err);
     res.status(500).send('Error');
