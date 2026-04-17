@@ -78,6 +78,7 @@ const initDb = async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS exercises (
       id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
       creator_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       shared BOOLEAN DEFAULT false
     );
@@ -89,7 +90,9 @@ const initDb = async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
       id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL
+      name TEXT NOT NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
   console.log('✅ Table sessions ready');
@@ -122,12 +125,12 @@ start();
 // CREATE
 app.post('/exercises', async (req, res) => {
   try {
-    const { creator_id, shared } = req.body;
+    const { name, creator_id, shared } = req.body;
 
 
     const result = await pool.query(
-      'INSERT INTO exercises(creator_id, shared) VALUES($1, $2, $3) RETURNING *',
-      [creator_id, shared] 
+      'INSERT INTO exercises(name, creator_id, shared) VALUES($1, $2, $3) RETURNING *',
+      [name, creator_id, shared] 
     );
 
     res.json(result.rows[0]);
@@ -162,14 +165,14 @@ app.get('/exercises', async (req, res) => {
 //UPDATE
 app.put('/exercises/:id', async (req, res) => {
   const { id } = req.params;
-  const { creator_id, shared } = req.body;
+  const { name, creator_id, shared } = req.body;
 
   const result = await pool.query(
     `UPDATE exercises
-     SET creator_id = $1, shared = $2
+     SET name = $1, creator_id = $2, shared = $3
      WHERE id = $4
      RETURNING *`,
-    [creator_id, shared, id]
+    [name, creator_id, shared, id]
   );
 
   if (result.rows.length === 0) {
@@ -294,28 +297,35 @@ app.delete('/users/:id', async (req, res) => {
 // CREATE 
 app.post('/sessions', async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, user_id } = req.body;
 
     const result = await pool.query(
-      'INSERT INTO sessions(name) VALUES($1) RETURNING *',
-      [name]
+      `INSERT INTO sessions(name, user_id)
+       VALUES($1, $2)
+       RETURNING *`,
+      [name, user_id]
     );
 
     res.json(result.rows[0]);
+
   } catch (err) {
     console.error(err);
-    res.status(500).send('Error');
+    res.status(500).send(err.message);
   }
 });
 
 // GET ALL
 app.get('/sessions', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM sessions');
+    const result = await pool.query(
+      `SELECT * FROM sessions ORDER BY id DESC`
+    );
+
     res.json(result.rows);
+
   } catch (err) {
     console.error(err);
-    res.status(500).send('Error');
+    res.status(500).send(err.message);
   }
 });
 
@@ -325,18 +335,39 @@ app.get('/sessions/:id', async (req, res) => {
     const { id } = req.params;
 
     const result = await pool.query(
-      'SELECT * FROM sessions WHERE id = $1',
+      `SELECT * FROM sessions WHERE id = $1`,
       [id]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Session not found' });
+      return res.status(404).json({ error: "Session not found" });
     }
 
     res.json(result.rows[0]);
+
   } catch (err) {
     console.error(err);
-    res.status(500).send('Error');
+    res.status(500).send(err.message);
+  }
+});
+
+//GET SESSION BY USER
+app.get('/users/:user_id/sessions', async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    const result = await pool.query(
+      `SELECT * FROM sessions
+       WHERE user_id = $1
+       ORDER BY id DESC`,
+      [user_id]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send(err.message);
   }
 });
 
@@ -344,21 +375,25 @@ app.get('/sessions/:id', async (req, res) => {
 app.put('/sessions/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, user_id } = req.body;
 
     const result = await pool.query(
-      'UPDATE sessions SET name = $1 WHERE id = $2 RETURNING *',
-      [name, id]
+      `UPDATE sessions
+       SET name = $1, user_id = $2
+       WHERE id = $3
+       RETURNING *`,
+      [name, user_id, id]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Session not found' });
+      return res.status(404).json({ error: "Session not found" });
     }
 
     res.json(result.rows[0]);
+
   } catch (err) {
     console.error(err);
-    res.status(500).send('Error');
+    res.status(500).send(err.message);
   }
 });
 
@@ -368,21 +403,21 @@ app.delete('/sessions/:id', async (req, res) => {
     const { id } = req.params;
 
     const result = await pool.query(
-      'DELETE FROM sessions WHERE id = $1 RETURNING *',
+      `DELETE FROM sessions WHERE id = $1 RETURNING *`,
       [id]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Session not found' });
+      return res.status(404).json({ error: "Session not found" });
     }
 
-    res.json({ message: 'Session deleted' });
+    res.json({ message: "Session deleted" });
+
   } catch (err) {
     console.error(err);
-    res.status(500).send('Error');
+    res.status(500).send(err.message);
   }
 });
-
 
 // ------ SETS ------
 
@@ -466,7 +501,7 @@ app.put('/sets/:id', async (req, res) => {
 });
 
 // DELETE
-app.delete('/sets/:id', async (req, res) => {
+app.delete('/sets/:id', async (req, res) => { 
   try {
     const { id } = req.params;
 

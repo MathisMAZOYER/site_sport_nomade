@@ -1,130 +1,112 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Gym Tracker</title>
-  <style>
-    body { font-family: Arial; margin: 0; }
+<meta charset="UTF-8">
+<title>Gym Tracker</title>
 
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px;
-      background: #222;
-      color: white;
-    }
+<style>
+body { font-family: Arial; margin:0; }
+.topbar { display:flex; justify-content:space-between; padding:10px; background:#222; color:white; }
+.users button { margin-right:10px; }
+.active { background:green; color:white; }
 
-    .users button {
-      margin-right: 10px;
-      padding: 8px;
-      cursor: pointer;
-    }
-
-    .active {
-      background: green;
-      color: white;
-    }
-
-    .container {
-      padding: 20px;
-    }
-
-    .card {
-      border: 1px solid #ccc;
-      padding: 10px;
-      margin-bottom: 10px;
-    }
-
-    input, select {
-      margin: 5px;
-    }
-  </style>
+.container { padding:20px; }
+.card { border:1px solid #ccc; padding:10px; margin-bottom:10px; }
+</style>
 </head>
 
 <body>
 
 <div class="topbar">
-  <div class="users">
-    <button onclick="selectUser('Raf')" id="user_Raf">Raf</button>
-    <button onclick="selectUser('Mathis')" id="user_Mathis">Mathis</button>
-  </div>
-
-  <button onclick="newSession()">+ Nouvelle session</button>
+  <div class="users" id="users"></div>
+  <button onclick="createSession()">+ Nouvelle session</button>
 </div>
 
 <div class="container">
 
-  <h2 id="sessionTitle">Session : -</h2>
+<h2 id="sessionTitle">Aucune session</h2>
 
-  <!-- ADD EXERCISE -->
-  <div class="card">
-    <h3>Ajouter exercice</h3>
+<div class="card">
+  <h3>Créer exercice</h3>
+  <input id="exerciseName" placeholder="Nom exercice">
+  <button onclick="createExercise()">Créer</button>
+</div>
 
-    <input id="exerciseName" placeholder="Nouvel exercice">
+<div class="card">
+  <h3>Ajouter performance</h3>
 
-    <button onclick="createExercise()">Créer</button>
-  </div>
+  <select id="exerciseSelect"></select>
+  <input id="reps" type="number" placeholder="reps">
+  <input id="weight" type="number" placeholder="weight">
 
-  <!-- SELECT EXISTING -->
-  <div class="card">
-    <h3>Exercices existants</h3>
+  <button onclick="addSet()">Ajouter</button>
+</div>
 
-    <select id="exerciseSelect"></select>
-
-    <input id="reps" placeholder="reps" type="number">
-    <input id="weight" placeholder="weight" type="number">
-
-    <button onclick="savePerformance()">Save</button>
-  </div>
-
-  <!-- LIST -->
-  <div class="card">
-    <h3>Historique session</h3>
-    <div id="history"></div>
-  </div>
+<div class="card">
+  <h3>Session recap</h3>
+  <div id="recap"></div>
+</div>
 
 </div>
 
 <script>
 const API = "http://192.168.1.210:3000";
 
-let currentUser = "Raf";
-let currentSession = 1;
-let sessionCounter = 1;
+let users = [];
+let currentUser = null;
+let currentSession = null;
 
-let sessionData = {
-  Raf: {},
-  Mathis: {}
-};
-
-// ---------------- USER ----------------
-function selectUser(user) {
-  currentUser = user;
-
-  document.getElementById("user_Raf").classList.remove("active");
-  document.getElementById("user_Mathis").classList.remove("active");
-
-  document.getElementById("user_" + user).classList.add("active");
-
-  loadExercises();
+// -------- USERS --------
+async function loadUsers() {
+  const res = await fetch(API + "/users");
+  users = await res.json();
+  renderUsers();
 }
 
-selectUser("Raf");
+function renderUsers() {
+  const div = document.getElementById("users");
+  div.innerHTML = "";
 
-// ---------------- SESSION ----------------
-function newSession() {
-  currentSession++;
-  sessionCounter++;
+  users.forEach(u => {
+    const btn = document.createElement("button");
+    btn.innerText = u.name;
 
-  document.getElementById("sessionTitle").innerText =
-    `Session ${currentSession} - ${currentUser}`;
+    btn.onclick = () => {
+      currentUser = u;
+      currentSession = null;
+      updateUI();
+      renderUsers();
+    };
 
-  sessionData[currentUser][currentSession] = [];
+    if (currentUser && u.id === currentUser.id) {
+      btn.classList.add("active");
+    }
 
-  document.getElementById("history").innerHTML = "";
+    div.appendChild(btn);
+  });
 }
 
-// ---------------- EXERCISES ----------------
+// -------- SESSION --------
+async function createSession() {
+  if (!currentUser) return alert("Select user");
+
+  const res = await fetch(API + "/sessions", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name: "Session " + new Date().toLocaleString(),
+      user_id: currentUser.id
+    })
+  });
+
+  const session = await res.json();
+  currentSession = session;
+
+  updateUI();
+  loadRecap();
+}
+
+// -------- EXERCISES --------
 async function loadExercises() {
   const res = await fetch(API + "/exercises");
   const data = await res.json();
@@ -132,70 +114,105 @@ async function loadExercises() {
   const select = document.getElementById("exerciseSelect");
   select.innerHTML = "";
 
-  data.forEach(ex => {
+  data.forEach(e => {
     const opt = document.createElement("option");
-    opt.value = ex.id;
-    opt.text = `#${ex.id} - ${ex.name || "exercise"}`;
+    opt.value = e.id;
+    opt.text = e.name || ("Ex " + e.id);
     select.appendChild(opt);
   });
 }
 
-// CREATE EXERCISE
 async function createExercise() {
+  if (!currentUser) return alert("Select user");
+
   const name = document.getElementById("exerciseName").value;
 
   await fetch(API + "/exercises", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({
-      creator_id: 1,
-      shared: true,
-      tracking: null // PROVISOIREEEEEE
+      name,
+      creator_id: currentUser.id,
+      shared: true
     })
   });
 
   loadExercises();
 }
 
-// SAVE PERFORMANCE
-function savePerformance() {
-  const exId = document.getElementById("exerciseSelect").value;
-  const reps = document.getElementById("reps").value;
-  const weight = document.getElementById("weight").value;
-
-  if (!sessionData[currentUser][currentSession]) {
-    sessionData[currentUser][currentSession] = [];
+// -------- SETS --------
+async function addSet() {
+  if (!currentUser || !currentSession) {
+    return alert("User + session required");
   }
 
-  sessionData[currentUser][currentSession].push({
-    exercise_id: exId,
-    reps,
-    weight
+  const exercise_id = document.getElementById("exerciseSelect").value;
+  const reps = parseInt(document.getElementById("reps").value);
+  const weight = parseInt(document.getElementById("weight").value);
+
+  await fetch(API + "/sets", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      user_id: currentUser.id,
+      session_id: currentSession.id,
+      exercise_id,
+      reps,
+      weight
+    })
   });
 
-  renderHistory();
+  loadRecap();
 }
 
-// ---------------- HISTORY ----------------
-function renderHistory() {
-  const div = document.getElementById("history");
-  div.innerHTML = "";
+// -------- RECAP --------
+async function loadRecap() {
+  if (!currentSession) return;
 
-  const data = sessionData[currentUser][currentSession] || [];
+  const res = await fetch(API + "/sets");
+  const sets = await res.json();
 
-  data.forEach(item => {
-    const el = document.createElement("div");
-    el.innerHTML = `
-      Exercise ${item.exercise_id}
-      | reps: ${item.reps}
-      | weight: ${item.weight}
-    `;
-    div.appendChild(el);
+  const filtered = sets.filter(s => s.session_id === currentSession.id);
+
+  const recap = document.getElementById("recap");
+  recap.innerHTML = "";
+
+  const grouped = {};
+
+  filtered.forEach(s => {
+    if (!grouped[s.exercise_id]) grouped[s.exercise_id] = [];
+    grouped[s.exercise_id].push(s);
   });
+
+  for (let ex in grouped) {
+    const div = document.createElement("div");
+    div.innerHTML = `<strong>Exercise ${ex}</strong>`;
+
+    grouped[ex].forEach(set => {
+      const p = document.createElement("div");
+      p.innerText = `${set.reps} reps @ ${set.weight}kg`;
+      div.appendChild(p);
+    });
+
+    recap.appendChild(div);
+  }
 }
 
-loadExercises();
+// -------- UI --------
+function updateUI() {
+  document.getElementById("sessionTitle").innerText =
+    currentUser
+      ? (currentSession
+        ? `${currentUser.name} - Session ${currentSession.id}`
+        : `${currentUser.name} (no session)`)
+      : "No user selected";
+}
 
+// INIT
+window.onload = () => {
+  loadUsers();
+  loadExercises();
+};
 </script>
 
 </body>

@@ -6,7 +6,7 @@
 id | name
 
 ### exercices :
-id | creator_id | shared
+id | name | creator_id | shared
 
 ### sessions :
 id | name
