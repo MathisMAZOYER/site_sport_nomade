@@ -50,7 +50,7 @@ body { font-family: Arial; margin:0; }
 </div>
 
 <script>
-const API = "http://192.168.1.210:3000";
+const API = "https://api.sport.nomade.one";
 
 let users = [];
 let currentUser = null;
@@ -146,7 +146,7 @@ async function addSet() {
     return alert("User + session required");
   }
 
-  const exercise_id = document.getElementById("exerciseSelect").value;
+  const exercise_id = parseInt(document.getElementById("exerciseSelect").value);
   const reps = parseInt(document.getElementById("reps").value);
   const weight = parseInt(document.getElementById("weight").value);
 
@@ -169,33 +169,101 @@ async function addSet() {
 async function loadRecap() {
   if (!currentSession) return;
 
-  const res = await fetch(API + "/sets");
+  try {
+    // 🔥 endpoint filtré (à créer côté backend)
+    const res = await fetch(API + `/sessions/${currentSession.id}/sets`);
+    const sets = await res.json();
+
+    const recap = document.getElementById("recap");
+    recap.innerHTML = "";
+
+    if (sets.length === 0) {
+      recap.innerHTML = "<i>Aucune performance pour cette session</i>";
+      return;
+    }
+
+    // 🔥 group by exercise
+    const grouped = {};
+
+    sets.forEach(s => {
+      if (!grouped[s.exercise_id]) grouped[s.exercise_id] = [];
+      grouped[s.exercise_id].push(s);
+    });
+
+    // 🔥 affichage
+    for (let ex in grouped) {
+
+      const container = document.createElement("div");
+      container.style.marginBottom = "15px";
+
+      const title = document.createElement("div");
+      title.innerHTML = `<strong>Exercise ${ex}</strong>`;
+      container.appendChild(title);
+
+      // 🔥 tri par date (récent en bas)
+      grouped[ex].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+      grouped[ex].forEach(set => {
+        const line = document.createElement("div");
+        line.innerText = `${set.reps} reps @ ${set.weight}kg`;
+        container.appendChild(line);
+      });
+
+      recap.appendChild(container);
+    }
+
+  } catch (err) {
+    console.error("Recap error:", err);
+  }
+
   const sets = await res.json();
+  renderRecap(sets);
+}
 
-  const filtered = sets.filter(s => s.session_id === currentSession.id);
-
+function renderRecap(sets) {
   const recap = document.getElementById("recap");
   recap.innerHTML = "";
 
   const grouped = {};
 
-  filtered.forEach(s => {
+  sets.forEach(s => {
     if (!grouped[s.exercise_id]) grouped[s.exercise_id] = [];
     grouped[s.exercise_id].push(s);
   });
 
   for (let ex in grouped) {
-    const div = document.createElement("div");
-    div.innerHTML = `<strong>Exercise ${ex}</strong>`;
+    const container = document.createElement("div");
+    container.innerHTML = `<strong>Exercise ${ex}</strong>`;
 
     grouped[ex].forEach(set => {
-      const p = document.createElement("div");
-      p.innerText = `${set.reps} reps @ ${set.weight}kg`;
-      div.appendChild(p);
+      const row = document.createElement("div");
+
+      row.innerHTML = `
+        <input type="number" value="${set.reps}" id="reps-${set.id}" style="width:60px">
+        <input type="number" value="${set.weight}" id="weight-${set.id}" style="width:60px">
+        <button onclick="updateSet(${set.id})">💾</button>
+      `;
+
+      container.appendChild(row);
     });
 
-    recap.appendChild(div);
+    recap.appendChild(container);
   }
+}
+
+// SET - UPDATE CALL
+async function updateSet(id) {
+  const reps = parseInt(document.getElementById(`reps-${id}`).value);
+  const weight = parseInt(document.getElementById(`weight-${id}`).value);
+
+  await fetch(API + `/sets/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reps, weight })
+  });
+
+  // refresh recap
+  loadRecap();
 }
 
 // -------- UI --------
@@ -212,6 +280,7 @@ function updateUI() {
 window.onload = () => {
   loadUsers();
   loadExercises();
+  loadRecap();
 };
 </script>
 

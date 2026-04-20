@@ -474,6 +474,24 @@ app.get('/sets/:id', async (req, res) => {
   }
 });
 
+// GET SETS BY SESSIONS
+app.get('/sessions/:id/sets', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM sets WHERE session_id = $1',
+      [id]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error');
+  }
+});
+
 // UPDATE
 app.put('/sets/:id', async (req, res) => {
   try {
