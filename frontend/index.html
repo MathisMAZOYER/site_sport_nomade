@@ -228,15 +228,47 @@ function renderRecap(sets) {
       const row = document.createElement("div");
 
       row.innerHTML = `
-        <input type="number" value="${set.reps}" id="reps-${set.id}" style="width:60px">
-        <input type="number" value="${set.weight}" id="weight-${set.id}" style="width:60px">
-        <button onclick="updateSet(${set.id})">💾</button>
+        <input type="number" value="${set.reps}" id="reps-${set.id}" disabled style="width:60px">
+        <input type="number" value="${set.weight}" id="weight-${set.id}" disabled style="width:60px">
+        <button id="btn-${set.id}" onclick="toggleEdit(${set.id})">✏️</button>
       `;
 
       container.appendChild(row);
     });
 
     recap.appendChild(container);
+  }
+}
+
+async function toggleEdit(id) {
+  const repsInput = document.getElementById(`reps-${id}`);
+  const weightInput = document.getElementById(`weight-${id}`);
+  const btn = document.getElementById(`btn-${id}`);
+
+  const isEditing = !repsInput.disabled;
+
+  if (isEditing) {
+    // SAVE
+    const reps = parseInt(repsInput.value);
+    const weight = parseInt(weightInput.value);
+
+    await fetch(API + `/sets/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reps, weight })
+    });
+
+    repsInput.disabled = true;
+    weightInput.disabled = true;
+    btn.innerText = "✏️";
+
+    loadRecap();
+
+  } else {
+    // EDIT MODE
+    repsInput.disabled = false;
+    weightInput.disabled = false;
+    btn.innerText = "💾";
   }
 }
 
