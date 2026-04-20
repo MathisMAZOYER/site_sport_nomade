@@ -58,9 +58,13 @@ let currentSession = null;
 
 // -------- USERS --------
 async function loadUsers() {
-  const res = await fetch(API + "/users");
-  users = await res.json();
-  renderUsers();
+  try {
+    const res = await fetch(API + "/users");
+    users = await res.json();
+    renderUsers();
+  } catch (err) {
+    console.error("Users error", err);
+  }
 }
 
 function renderUsers() {
@@ -76,6 +80,7 @@ function renderUsers() {
       currentSession = null;
       updateUI();
       renderUsers();
+      clearRecap();
     };
 
     if (currentUser && u.id === currentUser.id) {
@@ -127,6 +132,8 @@ async function createExercise() {
 
   const name = document.getElementById("exerciseName").value;
 
+  if (!name) return alert("Nom requis");
+
   await fetch(API + "/exercises", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
@@ -137,6 +144,7 @@ async function createExercise() {
     })
   });
 
+  document.getElementById("exerciseName").value = "";
   loadExercises();
 }
 
@@ -150,7 +158,11 @@ async function addSet() {
   const reps = parseInt(document.getElementById("reps").value);
   const weight = parseInt(document.getElementById("weight").value);
 
-  await fetch(API + "/sets", {
+  if (isNaN(reps) || isNaN(weight)) {
+    return alert("Reps et weight requis");
+  }
+
+  const res = await fetch(API + "/sets", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({
@@ -162,6 +174,9 @@ async function addSet() {
     })
   });
 
+  const txt = await res.text();
+  console.log("POST /sets:", res.status, txt);
+
   loadRecap();
 }
 
@@ -170,59 +185,29 @@ async function loadRecap() {
   if (!currentSession) return;
 
   try {
-    // 🔥 endpoint filtré (à créer côté backend)
     const res = await fetch(API + `/sessions/${currentSession.id}/sets`);
-    const sets = await res.json();
 
-    const recap = document.getElementById("recap");
-    recap.innerHTML = "";
-
-    if (sets.length === 0) {
-      recap.innerHTML = "<i>Aucune performance pour cette session</i>";
+    if (!res.ok) {
+      console.error("Recap fetch error:", res.status);
       return;
     }
 
-    // 🔥 group by exercise
-    const grouped = {};
-
-    sets.forEach(s => {
-      if (!grouped[s.exercise_id]) grouped[s.exercise_id] = [];
-      grouped[s.exercise_id].push(s);
-    });
-
-    // 🔥 affichage
-    for (let ex in grouped) {
-
-      const container = document.createElement("div");
-      container.style.marginBottom = "15px";
-
-      const title = document.createElement("div");
-      title.innerHTML = `<strong>Exercise ${ex}</strong>`;
-      container.appendChild(title);
-
-      // 🔥 tri par date (récent en bas)
-      grouped[ex].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-      grouped[ex].forEach(set => {
-        const line = document.createElement("div");
-        line.innerText = `${set.reps} reps @ ${set.weight}kg`;
-        container.appendChild(line);
-      });
-
-      recap.appendChild(container);
-    }
+    const sets = await res.json();
+    renderRecap(sets);
 
   } catch (err) {
     console.error("Recap error:", err);
   }
-
-  const sets = await res.json();
-  renderRecap(sets);
 }
 
 function renderRecap(sets) {
   const recap = document.getElementById("recap");
   recap.innerHTML = "";
+
+  if (!sets.length) {
+    recap.innerHTML = "<i>Aucune perf</i>";
+    return;
+  }
 
   const grouped = {};
 
@@ -233,7 +218,11 @@ function renderRecap(sets) {
 
   for (let ex in grouped) {
     const container = document.createElement("div");
-    container.innerHTML = `<strong>Exercise ${ex}</strong>`;
+    container.style.marginBottom = "15px";
+
+    const title = document.createElement("div");
+    title.innerHTML = `<strong>Exercise ${ex}</strong>`;
+    container.appendChild(title);
 
     grouped[ex].forEach(set => {
       const row = document.createElement("div");
@@ -251,7 +240,6 @@ function renderRecap(sets) {
   }
 }
 
-// SET - UPDATE CALL
 async function updateSet(id) {
   const reps = parseInt(document.getElementById(`reps-${id}`).value);
   const weight = parseInt(document.getElementById(`weight-${id}`).value);
@@ -262,7 +250,6 @@ async function updateSet(id) {
     body: JSON.stringify({ reps, weight })
   });
 
-  // refresh recap
   loadRecap();
 }
 
@@ -276,11 +263,14 @@ function updateUI() {
       : "No user selected";
 }
 
+function clearRecap() {
+  document.getElementById("recap").innerHTML = "";
+}
+
 // INIT
 window.onload = () => {
   loadUsers();
   loadExercises();
-  loadRecap();
 };
 </script>
 
