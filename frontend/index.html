@@ -22,6 +22,11 @@ body { font-family: Arial; margin:0; }
   <button onclick="createSession()">+ Nouvelle session</button>
 </div>
 
+<div class="card">
+  <h3>Choisir session</h3>
+  <select id="sessionSelect" onchange="selectSession()"></select>
+</div>
+
 <div class="container">
 
 <h2 id="sessionTitle">Aucune session</h2>
@@ -81,6 +86,7 @@ function renderUsers() {
       updateUI();
       renderUsers();
       clearRecap();
+      loadSessions();
     };
 
     if (currentUser && u.id === currentUser.id) {
@@ -106,6 +112,43 @@ async function createSession() {
 
   const session = await res.json();
   currentSession = session;
+
+  updateUI();
+  loadRecap();
+  loadSessions();
+}
+
+async function loadSessions() {
+  if (!currentUser) return;
+
+  const res = await fetch(API + "/sessions");
+  const sessions = await res.json();
+
+  const select = document.getElementById("sessionSelect");
+  select.innerHTML = "";
+
+  const userSessions = sessions.filter(s => s.user_id === currentUser.id);
+
+  userSessions.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.text = s.name;
+    select.appendChild(opt);
+  });
+
+  // sélection auto dernière session
+  if (userSessions.length > 0) {
+    currentSession = userSessions[userSessions.length - 1];
+    select.value = currentSession.id;
+    updateUI();
+    loadRecap();
+  }
+}
+
+function selectSession() {
+  const id = document.getElementById("sessionSelect").value;
+
+  currentSession = { id };
 
   updateUI();
   loadRecap();
