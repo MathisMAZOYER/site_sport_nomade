@@ -114,17 +114,25 @@ async function createSession() {
 // -------- EXERCISES --------
 async function loadExercises() {
   const res = await fetch(API + "/exercises");
-  const data = await res.json();
+  // const data = await res.json();
+  exercises = await res.json();
 
   const select = document.getElementById("exerciseSelect");
   select.innerHTML = "";
 
-  data.forEach(e => {
+  exercises.forEach(e => {
     const opt = document.createElement("option");
     opt.value = e.id;
     opt.text = e.name || ("Ex " + e.id);
     select.appendChild(opt);
   });
+}
+
+
+// get exercice name by id
+function getExerciseName(id) {
+  const ex = exercises.find(e => e.id == id);
+  return ex ? ex.name : `Exercise ${id}`;
 }
 
 async function createExercise() {
@@ -219,18 +227,20 @@ function renderRecap(sets) {
   for (let ex in grouped) {
     const container = document.createElement("div");
     container.style.marginBottom = "15px";
-
-    const title = document.createElement("div");
-    title.innerHTML = `<strong>Exercise ${ex}</strong>`;
-    container.appendChild(title);
+    
 
     grouped[ex].forEach(set => {
       const row = document.createElement("div");
 
+      const title = document.createElement("div");
+      title.innerHTML = `<strong>${getExerciseName(ex)}</strong>`;
+      container.appendChild(title);
+
       row.innerHTML = `
         <input type="number" value="${set.reps}" id="reps-${set.id}" disabled style="width:60px">
         <input type="number" value="${set.weight}" id="weight-${set.id}" disabled style="width:60px">
-        <button id="btn-${set.id}" onclick="toggleEdit(${set.id})">✏️</button>
+        <button id="edit-${set.id}" onclick="toggleEdit(${set.id})">✏️</button>
+        <button id="delete-${set.id}" onclick="deleteSet(${set.id})" >🗑️</button>
       `;
 
       container.appendChild(row);
@@ -240,10 +250,21 @@ function renderRecap(sets) {
   }
 }
 
+async function deleteSet(id) {
+    await fetch(API + `/sets/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" }
+    });
+    //return alert("Performance supprimée");
+
+    loadRecap();
+}
+
+
 async function toggleEdit(id) {
   const repsInput = document.getElementById(`reps-${id}`);
   const weightInput = document.getElementById(`weight-${id}`);
-  const btn = document.getElementById(`btn-${id}`);
+  const btn = document.getElementById(`edit-${id}`);
 
   const isEditing = !repsInput.disabled;
 
