@@ -1,18 +1,11 @@
 <!DOCTYPE html>
 <html>
-<head>
+<head> 
+  
+<link rel="stylesheet" href="style.css">
 <meta charset="UTF-8">
 <title>Gym Tracker</title>
 
-<style>
-body { font-family: Arial; margin:0; }
-.topbar { display:flex; justify-content:space-between; padding:10px; background:#222; color:white; }
-.users button { margin-right:10px; }
-.active { background:green; color:white; }
-
-.container { padding:20px; }
-.card { border:1px solid #ccc; padding:10px; margin-bottom:10px; }
-</style>
 </head>
 
 <body>
@@ -27,9 +20,14 @@ body { font-family: Arial; margin:0; }
   <select id="sessionSelect" onchange="selectSession()"></select>
 </div>
 
-<div class="container">
+<div class="card session-card">
+  <h3>Session</h3>
 
-<h2 id="sessionTitle">Aucune session</h2>
+  <div class="session-header">
+    <h2 id="sessionTitle">Aucune session</h2>
+  </div>
+
+</div>
 
 <div class="card">
   <h3>Créer exercice</h3>
