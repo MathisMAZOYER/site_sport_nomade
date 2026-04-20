@@ -1,34 +1,278 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Sport Tracker</title>
+<meta charset="UTF-8">
+<title>Gym Tracker</title>
+
+<style>
+body { font-family: Arial; margin:0; }
+.topbar { display:flex; justify-content:space-between; padding:10px; background:#222; color:white; }
+.users button { margin-right:10px; }
+.active { background:green; color:white; }
+
+.container { padding:20px; }
+.card { border:1px solid #ccc; padding:10px; margin-bottom:10px; }
+</style>
 </head>
+
 <body>
 
-  <h1>Ajouter un exercice 💪</h1>
+<div class="topbar">
+  <div class="users" id="users"></div>
+  <button onclick="createSession()">+ Nouvelle session</button>
+</div>
 
-  <input type="text" id="exerciseName" placeholder="Nom de l'exercice">
-  <button onclick="addExercise()">Ajouter</button>
+<div class="container">
 
-  <p id="result"></p>
+<h2 id="sessionTitle">Aucune session</h2>
 
-  <script>
-    async function addExercise() {
-      const name = document.getElementById('exerciseName').value;
+<div class="card">
+  <h3>Créer exercice</h3>
+  <input id="exerciseName" placeholder="Nom exercice">
+  <button onclick="createExercise()">Créer</button>
+</div>
 
-      const res = await fetch('http://192.168.1.210:3000/exercises', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-      });
+<div class="card">
+  <h3>Ajouter performance</h3>
 
-      const data = await res.json();
+  <select id="exerciseSelect"></select>
+  <input id="reps" type="number" placeholder="reps">
+  <input id="weight" type="number" placeholder="weight">
 
-      document.getElementById('result').innerText =
-        "Ajouté : " + data.name + " (id: " + data.id + ")";
+  <button onclick="addSet()">Ajouter</button>
+</div>
+
+<div class="card">
+  <h3>Session recap</h3>
+  <div id="recap"></div>
+</div>
+
+</div>
+
+<script>
+const API = "https://api.sport.nomade.one";
+
+let users = [];
+let currentUser = null;
+let currentSession = null;
+
+// -------- USERS --------
+async function loadUsers() {
+  try {
+    const res = await fetch(API + "/users");
+    users = await res.json();
+    renderUsers();
+  } catch (err) {
+    console.error("Users error", err);
+  }
+}
+
+function renderUsers() {
+  const div = document.getElementById("users");
+  div.innerHTML = "";
+
+  users.forEach(u => {
+    const btn = document.createElement("button");
+    btn.innerText = u.name;
+
+    btn.onclick = () => {
+      currentUser = u;
+      currentSession = null;
+      updateUI();
+      renderUsers();
+      clearRecap();
+    };
+
+    if (currentUser && u.id === currentUser.id) {
+      btn.classList.add("active");
     }
-  </script>
+
+    div.appendChild(btn);
+  });
+}
+
+// -------- SESSION --------
+async function createSession() {
+  if (!currentUser) return alert("Select user");
+
+  const res = await fetch(API + "/sessions", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name: "Session " + new Date().toLocaleString(),
+      user_id: currentUser.id
+    })
+  });
+
+  const session = await res.json();
+  currentSession = session;
+
+  updateUI();
+  loadRecap();
+}
+
+// -------- EXERCISES --------
+async function loadExercises() {
+  const res = await fetch(API + "/exercises");
+  const data = await res.json();
+
+  const select = document.getElementById("exerciseSelect");
+  select.innerHTML = "";
+
+  data.forEach(e => {
+    const opt = document.createElement("option");
+    opt.value = e.id;
+    opt.text = e.name || ("Ex " + e.id);
+    select.appendChild(opt);
+  });
+}
+
+async function createExercise() {
+  if (!currentUser) return alert("Select user");
+
+  const name = document.getElementById("exerciseName").value;
+
+  if (!name) return alert("Nom requis");
+
+  await fetch(API + "/exercises", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name,
+      creator_id: currentUser.id,
+      shared: true
+    })
+  });
+
+  document.getElementById("exerciseName").value = "";
+  loadExercises();
+}
+
+// -------- SETS --------
+async function addSet() {
+  if (!currentUser || !currentSession) {
+    return alert("User + session required");
+  }
+
+  const exercise_id = parseInt(document.getElementById("exerciseSelect").value);
+  const reps = parseInt(document.getElementById("reps").value);
+  const weight = parseInt(document.getElementById("weight").value);
+
+  if (isNaN(reps) || isNaN(weight)) {
+    return alert("Reps et weight requis");
+  }
+
+  const res = await fetch(API + "/sets", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      user_id: currentUser.id,
+      session_id: currentSession.id,
+      exercise_id,
+      reps,
+      weight
+    })
+  });
+
+  const txt = await res.text();
+  console.log("POST /sets:", res.status, txt);
+
+  loadRecap();
+}
+
+// -------- RECAP --------
+async function loadRecap() {
+  if (!currentSession) return;
+
+  try {
+    const res = await fetch(API + `/sessions/${currentSession.id}/sets`);
+
+    if (!res.ok) {
+      console.error("Recap fetch error:", res.status);
+      return;
+    }
+
+    const sets = await res.json();
+    renderRecap(sets);
+
+  } catch (err) {
+    console.error("Recap error:", err);
+  }
+}
+
+function renderRecap(sets) {
+  const recap = document.getElementById("recap");
+  recap.innerHTML = "";
+
+  if (!sets.length) {
+    recap.innerHTML = "<i>Aucune perf</i>";
+    return;
+  }
+
+  const grouped = {};
+
+  sets.forEach(s => {
+    if (!grouped[s.exercise_id]) grouped[s.exercise_id] = [];
+    grouped[s.exercise_id].push(s);
+  });
+
+  for (let ex in grouped) {
+    const container = document.createElement("div");
+    container.style.marginBottom = "15px";
+
+    const title = document.createElement("div");
+    title.innerHTML = `<strong>Exercise ${ex}</strong>`;
+    container.appendChild(title);
+
+    grouped[ex].forEach(set => {
+      const row = document.createElement("div");
+
+      row.innerHTML = `
+        <input type="number" value="${set.reps}" id="reps-${set.id}" style="width:60px">
+        <input type="number" value="${set.weight}" id="weight-${set.id}" style="width:60px">
+        <button onclick="updateSet(${set.id})">💾</button>
+      `;
+
+      container.appendChild(row);
+    });
+
+    recap.appendChild(container);
+  }
+}
+
+async function updateSet(id) {
+  const reps = parseInt(document.getElementById(`reps-${id}`).value);
+  const weight = parseInt(document.getElementById(`weight-${id}`).value);
+
+  await fetch(API + `/sets/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reps, weight })
+  });
+
+  loadRecap();
+}
+
+// -------- UI --------
+function updateUI() {
+  document.getElementById("sessionTitle").innerText =
+    currentUser
+      ? (currentSession
+        ? `${currentUser.name} - Session ${currentSession.id}`
+        : `${currentUser.name} (no session)`)
+      : "No user selected";
+}
+
+function clearRecap() {
+  document.getElementById("recap").innerHTML = "";
+}
+
+// INIT
+window.onload = () => {
+  loadUsers();
+  loadExercises();
+};
+</script>
 
 </body>
 </html>
