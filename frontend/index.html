@@ -117,8 +117,11 @@ async function createSession() {
   const session = await res.json();
   currentSession = session;
 
+
   updateUI();
   loadRecap();
+
+  await loadSessions();
 }
 
 async function loadSessions() {
