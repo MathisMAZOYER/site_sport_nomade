@@ -109,6 +109,7 @@ const initDb = async () => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
     console.log('✅ Table sets ready');
 
   console.log('✅ All tables ready');

@@ -1,18 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
+
+<link rel="stylesheet" href="style.css">
 <meta charset="UTF-8">
 <title>Gym Tracker</title>
 
-<style>
-body { font-family: Arial; margin:0; }
-.topbar { display:flex; justify-content:space-between; padding:10px; background:#222; color:white; }
-.users button { margin-right:10px; }
-.active { background:green; color:white; }
-
-.container { padding:20px; }
-.card { border:1px solid #ccc; padding:10px; margin-bottom:10px; }
-</style>
 </head>
 
 <body>
@@ -22,9 +15,19 @@ body { font-family: Arial; margin:0; }
   <button onclick="createSession()">+ Nouvelle session</button>
 </div>
 
-<div class="container">
+<div class="card">
+  <h3>Choisir session</h3>
+  <select id="sessionSelect" onchange="selectSession()"></select>
+</div>
 
-<h2 id="sessionTitle">Aucune session</h2>
+<div class="card session-card">
+  <h3>Session</h3>
+
+  <div class="session-header">
+    <h2 id="sessionTitle">Aucune session</h2>
+  </div>
+
+</div>
 
 <div class="card">
   <h3>Créer exercice</h3>
@@ -81,6 +84,7 @@ function renderUsers() {
       updateUI();
       renderUsers();
       clearRecap();
+      loadSessions();
     };
 
     if (currentUser && u.id === currentUser.id) {
@@ -109,22 +113,67 @@ async function createSession() {
 
   updateUI();
   loadRecap();
+  loadSessions();
+}
+
+async function loadSessions() {
+  if (!currentUser) return;
+
+  const res = await fetch(API + "/sessions");
+  const sessions = await res.json();
+
+  const select = document.getElementById("sessionSelect");
+  select.innerHTML = "";
+
+  const userSessions = sessions.filter(s => s.user_id === currentUser.id);
+
+  userSessions.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.text = s.name;
+    select.appendChild(opt);
+  });
+
+  // sélection auto dernière session
+  if (userSessions.length > 0) {
+    currentSession = userSessions[userSessions.length - 1];
+    select.value = currentSession.id;
+    updateUI();
+    loadRecap();
+  }
+}
+
+function selectSession() {
+  const id = document.getElementById("sessionSelect").value;
+
+  currentSession = { id };
+
+  updateUI();
+  loadRecap();
 }
 
 // -------- EXERCISES --------
 async function loadExercises() {
   const res = await fetch(API + "/exercises");
-  const data = await res.json();
+  // const data = await res.json();
+  exercises = await res.json();
 
   const select = document.getElementById("exerciseSelect");
   select.innerHTML = "";
 
-  data.forEach(e => {
+  exercises.forEach(e => {
     const opt = document.createElement("option");
     opt.value = e.id;
     opt.text = e.name || ("Ex " + e.id);
     select.appendChild(opt);
   });
+}
+
+
+// get exercice name by id
+function getExerciseName(id) {
+  const ex = exercises.find(e => e.id == id);
+  return ex ? ex.name : `Exercise ${id}`;
 }
 
 async function createExercise() {
@@ -220,23 +269,68 @@ function renderRecap(sets) {
     const container = document.createElement("div");
     container.style.marginBottom = "15px";
 
-    const title = document.createElement("div");
-    title.innerHTML = `<strong>Exercise ${ex}</strong>`;
-    container.appendChild(title);
 
     grouped[ex].forEach(set => {
       const row = document.createElement("div");
 
+      const title = document.createElement("div");
+      title.innerHTML = `<strong>${getExerciseName(ex)}</strong>`;
+      container.appendChild(title);
+
       row.innerHTML = `
-        <input type="number" value="${set.reps}" id="reps-${set.id}" style="width:60px">
-        <input type="number" value="${set.weight}" id="weight-${set.id}" style="width:60px">
-        <button onclick="updateSet(${set.id})">💾</button>
+        <input type="number" value="${set.reps}" id="reps-${set.id}" disabled style="width:60px">
+        <input type="number" value="${set.weight}" id="weight-${set.id}" disabled style="width:60px">
+        <button id="edit-${set.id}" onclick="toggleEdit(${set.id})">✏️</button>
+        <button id="delete-${set.id}" onclick="deleteSet(${set.id})" >🗑️</button>
       `;
 
       container.appendChild(row);
     });
 
     recap.appendChild(container);
+  }
+}
+
+async function deleteSet(id) {
+    await fetch(API + `/sets/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" }
+    });
+    //return alert("Performance supprimée");
+
+    loadRecap();
+}
+
+
+async function toggleEdit(id) {
+  const repsInput = document.getElementById(`reps-${id}`);
+  const weightInput = document.getElementById(`weight-${id}`);
+  const btn = document.getElementById(`edit-${id}`);
+
+  const isEditing = !repsInput.disabled;
+
+  if (isEditing) {
+    // SAVE
+    const reps = parseInt(repsInput.value);
+    const weight = parseInt(weightInput.value);
+
+    await fetch(API + `/sets/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reps, weight })
+    });
+
+    repsInput.disabled = true;
+    weightInput.disabled = true;
+    btn.innerText = "✏️";
+
+    loadRecap();
+
+  } else {
+    // EDIT MODE
+    repsInput.disabled = false;
+    weightInput.disabled = false;
+    btn.innerText = "💾";
   }
 }
 
