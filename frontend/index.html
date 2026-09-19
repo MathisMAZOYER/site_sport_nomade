@@ -27,6 +27,13 @@ body { font-family: Arial; margin:0; }
 <h2 id="sessionTitle">Aucune session</h2>
 
 <div class="card">
+  <h3>Choisir session</h3>
+  <select id="sessionSelect" onchange="selectSession()"></select>
+  <button onclick="deleteSession()">🗑️ Supprimer la session</button>
+
+</div>
+
+<div class="card">
   <h3>Créer exercice</h3>
   <input id="exerciseName" placeholder="Nom exercice">
   <button onclick="createExercise()">Créer</button>
@@ -36,6 +43,7 @@ body { font-family: Arial; margin:0; }
   <h3>Ajouter performance</h3>
 
   <select id="exerciseSelect"></select>
+  <input id="series" type="number" min="1" value="3" placeholder="series">
   <input id="reps" type="number" placeholder="reps">
   <input id="weight" type="number" placeholder="weight">
 
@@ -53,6 +61,7 @@ body { font-family: Arial; margin:0; }
 const API = "https://api.sport.nomade.one";
 
 let users = [];
+let exercises = [];
 let currentUser = null;
 let currentSession = null;
 
@@ -81,6 +90,7 @@ function renderUsers() {
       updateUI();
       renderUsers();
       clearRecap();
+      loadSessions();
     };
 
     if (currentUser && u.id === currentUser.id) {
@@ -111,20 +121,78 @@ async function createSession() {
   loadRecap();
 }
 
+async function loadSessions() {
+  if (!currentUser) return;
+
+  try {
+    const res = await fetch(API + "/sessions");
+
+    console.log("GET /sessions:", res.status);
+
+    if (!res.ok) {
+      console.error("Erreur sessions:", res.status);
+      return;
+    }
+
+    const sessions = await res.json();
+
+    console.log("Sessions reçues:", sessions);
+
+    const select = document.getElementById("sessionSelect");
+    select.innerHTML = "";
+
+    const userSessions = sessions.filter(
+      s => s.user_id === currentUser.id
+    );
+
+    userSessions.forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.text = s.name;
+      select.appendChild(opt);
+    });
+
+    if (userSessions.length > 0) {
+      currentSession = userSessions[0];
+      select.value = currentSession.id;
+
+      updateUI();
+      loadRecap();
+    }
+
+  } catch (err) {
+    console.error("Sessions error:", err);
+  }
+}
+
+function selectSession() {
+  const id = document.getElementById("sessionSelect").value;
+
+  currentSession = { id };
+
+  updateUI();
+  loadRecap();
+}
+
 // -------- EXERCISES --------
 async function loadExercises() {
   const res = await fetch(API + "/exercises");
-  const data = await res.json();
+  exercises = await res.json();
 
   const select = document.getElementById("exerciseSelect");
   select.innerHTML = "";
 
-  data.forEach(e => {
+  exercises.forEach(e => {
     const opt = document.createElement("option");
     opt.value = e.id;
     opt.text = e.name || ("Ex " + e.id);
     select.appendChild(opt);
   });
+}
+
+function getExerciseName(id) {
+  const ex = exercises.find(e => e.id == id);
+  return ex ? ex.name : `Exercise ${id}`;
 }
 
 async function createExercise() {
@@ -155,8 +223,13 @@ async function addSet() {
   }
 
   const exercise_id = parseInt(document.getElementById("exerciseSelect").value);
+  const series = parseInt(document.getElementById("series").value);
   const reps = parseInt(document.getElementById("reps").value);
   const weight = parseInt(document.getElementById("weight").value);
+
+  if (isNaN(series) || series < 1) {
+    return alert("Series requis");
+  }
 
   if (isNaN(reps) || isNaN(weight)) {
     return alert("Reps et weight requis");
@@ -169,6 +242,7 @@ async function addSet() {
       user_id: currentUser.id,
       session_id: currentSession.id,
       exercise_id,
+      series,
       reps,
       weight
     })
@@ -200,6 +274,45 @@ async function loadRecap() {
   }
 }
 
+async function deleteSession() {
+  if (!currentSession) {
+    return alert("Aucune session sélectionnée");
+  }
+
+  if (!confirm("Supprimer cette session et toutes ses performances ?")) {
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      API + `/sessions/${currentSession.id}`,
+      {
+        method: "DELETE"
+      }
+    );
+
+    if (!res.ok) {
+      console.error("Delete session error:", res.status);
+      return;
+    }
+
+    const result = await res.json();
+    console.log("DELETE /sessions:", result);
+
+    // On vide la session courante
+    currentSession = null;
+
+    updateUI();
+    clearRecap();
+
+    // Recharge la liste des sessions
+    loadSessions();
+
+  } catch (err) {
+    console.error("Delete session error:", err);
+  }
+}
+
 function renderRecap(sets) {
   const recap = document.getElementById("recap");
   recap.innerHTML = "";
@@ -221,16 +334,19 @@ function renderRecap(sets) {
     container.style.marginBottom = "15px";
 
     const title = document.createElement("div");
-    title.innerHTML = `<strong>Exercise ${ex}</strong>`;
+    title.innerHTML = `<strong>${getExerciseName(ex)}</strong>`;
     container.appendChild(title);
 
     grouped[ex].forEach(set => {
       const row = document.createElement("div");
 
       row.innerHTML = `
+        <input type="number" value="${set.series}" id="series-${set.id}" style="width:60px">
         <input type="number" value="${set.reps}" id="reps-${set.id}" style="width:60px">
         <input type="number" value="${set.weight}" id="weight-${set.id}" style="width:60px">
         <button onclick="updateSet(${set.id})">💾</button>
+        <button onclick="deleteSet(${set.id})">🗑️</button>
+
       `;
 
       container.appendChild(row);
@@ -241,16 +357,42 @@ function renderRecap(sets) {
 }
 
 async function updateSet(id) {
+  const series = parseInt(document.getElementById(`series-${id}`).value);
   const reps = parseInt(document.getElementById(`reps-${id}`).value);
   const weight = parseInt(document.getElementById(`weight-${id}`).value);
 
   await fetch(API + `/sets/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reps, weight })
+    body: JSON.stringify({ series, reps, weight })
   });
 
   loadRecap();
+}
+
+async function deleteSet(id) {
+  if (!confirm("Supprimer cette performance ?")) {
+    return;
+  }
+
+  try {
+    const res = await fetch(API + `/sets/${id}`, {
+      method: "DELETE"
+    });
+
+    if (!res.ok) {
+      console.error("Delete error:", res.status);
+      return;
+    }
+
+    const result = await res.json();
+    console.log("DELETE /sets:", result);
+
+    loadRecap();
+
+  } catch (err) {
+    console.error("Delete error:", err);
+  }
 }
 
 // -------- UI --------

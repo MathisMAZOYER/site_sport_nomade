@@ -109,6 +109,11 @@ const initDb = async () => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  await pool.query(`
+  ALTER TABLE sets
+  ADD COLUMN IF NOT EXISTS series INTEGER NOT NULL DEFAULT 3
+`);
     console.log('✅ Table sets ready');
 
   console.log('✅ All tables ready');
@@ -424,14 +429,17 @@ app.delete('/sessions/:id', async (req, res) => {
 // CREATE
 app.post('/sets', async (req, res) => {
   try {
-    const { user_id, session_id, exercise_id, reps, weight } = req.body;
+    const { user_id, session_id, exercise_id, reps, weight, series } = req.body;
+
+    console.log("BODY /sets =", req.body);
+    console.log("SERIES =", series);
 
     const result = await pool.query(
-      `INSERT INTO sets(user_id, session_id, exercise_id, reps, weight)
-       VALUES($1,$2,$3,$4,$5)
+      `INSERT INTO sets(user_id, session_id, exercise_id, reps, weight, series)
+       VALUES($1,$2,$3,$4,$5,$6)
        RETURNING *`,
-      [user_id, session_id, exercise_id, reps, weight]
-    );
+      [user_id, session_id, exercise_id, reps, weight, series]
+    )
 
     res.json(result.rows[0]);
 
@@ -496,14 +504,14 @@ app.get('/sessions/:id/sets', async (req, res) => {
 app.put('/sets/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { reps, weight } = req.body;
+    const { reps, weight, series } = req.body;
 
     const result = await pool.query(
       `UPDATE sets
-       SET reps = $1, weight = $2
-       WHERE id = $3
+       SET reps = $1, weight = $2, series = $3
+       WHERE id = $4
        RETURNING *`,
-      [reps, weight, id]
+      [reps, weight, series, id]
     );
 
     if (result.rows.length === 0) {
