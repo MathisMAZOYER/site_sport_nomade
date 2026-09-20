@@ -943,6 +943,14 @@ select:focus {
 
         </div>
 
+        <button
+          class="btn"
+          onclick="openCreateExerciseModal()"
+          style="margin-top:12px;"
+        >
+          ＋ Créer un nouvel exercice
+        </button>
+
       </section>
 
 
@@ -2431,7 +2439,132 @@ async function deleteExerciseFromSession(exerciseId) {
   }
 
 }
+/* =========================================================
+   CREATE EXERCISE
+========================================================= */
 
+function openCreateExerciseModal() {
+
+  if (!currentUser) {
+
+    showToast(
+      "Sélectionne d'abord un utilisateur",
+      "error"
+    );
+
+    return;
+  }
+
+  openModal(
+
+    "Créer un exercice",
+
+    `
+      <div class="field">
+
+        <label>Nom de l'exercice</label>
+
+        <input
+          id="newExerciseName"
+          type="text"
+          placeholder="Ex : Développé couché"
+          autofocus
+        >
+
+      </div>
+    `,
+
+    async () => {
+
+      const name =
+        document
+          .getElementById("newExerciseName")
+          .value
+          .trim();
+
+      if (!name) {
+
+        showToast(
+          "Le nom de l'exercice est requis",
+          "error"
+        );
+
+        return;
+      }
+
+      try {
+
+        const res =
+          await fetch(
+            API + "/exercises",
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type": "application/json"
+              },
+
+              body: JSON.stringify({
+                name,
+                creator_id: currentUser.id,
+                shared: true
+              })
+            }
+          );
+
+        if (!res.ok) {
+
+          throw new Error(
+            `HTTP ${res.status}`
+          );
+
+        }
+
+        const exercise =
+          await res.json();
+
+        /*
+         * Recharge la liste des exercices
+         */
+        await loadExercises();
+
+        /*
+         * Sélectionne automatiquement
+         * le nouvel exercice
+         */
+        const select =
+          document.getElementById(
+            "exerciseSelect"
+          );
+
+        select.value =
+          exercise.id;
+
+        closeModal();
+
+        showToast(
+          `Exercice "${exercise.name}" créé`
+        );
+
+      } catch (err) {
+
+        console.error(
+          "Create exercise error:",
+          err
+        );
+
+        showToast(
+          "Impossible de créer l'exercice",
+          "error"
+        );
+
+      }
+
+    }
+
+  );
+
+}
 
 /* =========================================================
    INIT
