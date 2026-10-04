@@ -548,6 +548,32 @@ app.delete('/sets/:id', async (req, res) => {
   }
 });
 
+// GET EXERCICE HISTORY
+app.get('/exercises/:id/history', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT
+        sets.id,
+        sets.series,
+        sets.weight,
+        sets.reps,
+        sessions.name AS session_name,
+        sessions.created_at AS session_date
+      FROM sets
+      JOIN sessions ON sessions.id = sets.session_id
+      WHERE sets.exercise_id = $1
+      ORDER BY sets.created_at DESC, sets.id DESC
+      LIMIT 3
+    `, [id]);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error');
+  }
+});
 
 // Lancer serveur
 app.listen(3000, () => {

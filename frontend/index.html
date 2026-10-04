@@ -716,6 +716,87 @@ select:focus {
     flex-direction: column;
   }
 }
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-row {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.history-main {
+  margin-bottom: 12px;
+}
+
+.history-session {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.history-date {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.history-values {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.history-value {
+  background: var(--card);
+  border-radius: 10px;
+  padding: 9px;
+  text-align: center;
+}
+
+.history-value span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.history-value strong {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.btn-secondary {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+@media (max-width: 600px) {
+  .history-values {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .history-value {
+    padding: 8px 4px;
+  }
+
+  .history-value strong {
+    font-size: 14px;
+  }
+}
 </style>
 </head>
 
@@ -939,6 +1020,16 @@ select:focus {
             onclick="addSet()"
           >
             Ajouter
+          </button>
+
+          <button
+            id="historyButton"
+            class="btn btn-secondary"
+            type="button"
+            onclick="showExerciseHistory()"
+            style="margin-top:10px; width:100%; display:none;"
+          >
+            ↺ Voir les performances précédentes
           </button>
 
         </div>
@@ -2587,11 +2678,114 @@ async function init() {
 
 }
 
+async function showExerciseHistory() {
+  const exerciseId = document.getElementById("exerciseSelect").value;
+
+  if (!exerciseId) {
+    showToast("Sélectionne d'abord un exercice", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/exercises/${exerciseId}/history`);
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const performances = await res.json();
+
+    const exerciseName =
+      document.getElementById("exerciseSelect")
+        .selectedOptions[0]?.text || "Exercice";
+
+    if (!performances.length) {
+      openModal(
+        `Historique — ${escapeHtml(exerciseName)}`,
+        `
+          <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <h3>Aucune performance</h3>
+            <p>
+              Tu n'as encore aucune performance enregistrée
+              pour cet exercice.
+            </p>
+          </div>
+        `,
+        null
+      );
+
+      return;
+    }
+
+    const rows = performances.map(performance => {
+      const date = new Date(performance.session_date);
+
+      return `
+        <div class="history-row">
+          <div class="history-main">
+            <div class="history-session">
+              ${escapeHtml(performance.session_name)}
+            </div>
+
+            <div class="history-date">
+              ${date.toLocaleDateString("fr-FR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric"
+              })}
+            </div>
+          </div>
+
+          <div class="history-values">
+            <div class="history-value">
+              <span>Série</span>
+              <strong>${performance.series}</strong>
+            </div>
+
+            <div class="history-value">
+              <span>Poids</span>
+              <strong>${performance.weight} kg</strong>
+            </div>
+
+            <div class="history-value">
+              <span>Reps</span>
+              <strong>${performance.reps}</strong>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    openModal(
+      `Historique — ${escapeHtml(exerciseName)}`,
+      `
+        <div class="history-list">
+          ${rows}
+        </div>
+      `,
+      null
+    );
+
+  } catch (err) {
+    console.error("History error:", err);
+    showToast("Impossible de récupérer l'historique", "error");
+  }
+}
+
 
 window.addEventListener(
   "load",
   init
 );
+
+document.getElementById("exerciseSelect").addEventListener("change", function () {
+  const button = document.getElementById("historyButton");
+
+  if (!button) return;
+
+  button.style.display = this.value ? "block" : "none";
+});
 
 </script>
 
